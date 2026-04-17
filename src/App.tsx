@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { generatePuzzleData, PuzzleData, PuzzleGridCell } from './utils/puzzleUtils';
-import { getDailyPuzzleDef, DailyPuzzleDef } from './utils/dailyPuzzle';
+import { getDailyPuzzleDef, DailyPuzzleDef, prefetchNextPuzzle } from './utils/dailyPuzzle';
 import { Loader2, Share2, HelpCircle, Trophy, Wand2, Shuffle } from 'lucide-react';
 import { format } from 'date-fns';
 import clsx from 'clsx';
@@ -45,7 +45,12 @@ export default function App() {
         if (savedStateStr) {
           try {
             const savedState = JSON.parse(savedStateStr);
-            if (savedState.date === todayStr) {
+            // Check if date matches AND the grid dimensions match the current puzzle
+            // This prevents issues if we update the filtering logic and the puzzle changes mid-day
+            const isSameGrid = savedState.gridState?.length === pData.grid.length && 
+                               savedState.gridState?.[0]?.length === pData.grid[0]?.length;
+                               
+            if (savedState.date === todayStr && isSameGrid) {
               setGridState(savedState.gridState);
               setElapsedTime(savedState.elapsedTime);
               setHintsUsed(savedState.hintsUsed);
@@ -69,6 +74,12 @@ export default function App() {
         }
         
         setLoading(false);
+        
+        // Quietly fetch a future puzzle in the background
+        setTimeout(() => {
+          prefetchNextPuzzle().catch(console.error);
+        }, 1000);
+
       } catch (err) {
         console.error(err);
         setError('Failed to load puzzle. Please try again later.');

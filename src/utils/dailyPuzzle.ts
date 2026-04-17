@@ -1,6 +1,7 @@
-import { format, subYears } from 'date-fns';
+import { format, subYears, addDays } from 'date-fns';
+import puzzlesData from '../data/puzzles.json';
 
-const CORS_PROXY = 'https://api.allorigins.win/raw?url=';
+const CORS_PROXY = 'https://api.codetabs.com/v1/proxy?quest=';
 const NYT_SITEMAP_BASE = 'https://www.nytimes.com/sitemap';
 
 export interface DailyPuzzleDef {
@@ -20,19 +21,28 @@ function mulberry32(a: number) {
   }
 }
 
-export async function getDailyPuzzleDef(): Promise<DailyPuzzleDef> {
-  const today = new Date();
-  const todayStr = format(today, 'yyyy-MM-dd');
-  const seed = parseInt(format(today, 'yyyyMMdd'), 10);
+function getLocalPuzzles(): Record<string, DailyPuzzleDef> {
+  try {
+    const raw = localStorage.getItem('chrono_future_puzzles');
+    if (raw) return JSON.parse(raw);
+  } catch (e) {
+    console.error("Failed to parse cached puzzles", e);
+  }
+  return {};
+}
+
+function saveLocalPuzzles(puzzles: Record<string, DailyPuzzleDef>) {
+  localStorage.setItem('chrono_future_puzzles', JSON.stringify(puzzles));
+}
+
+async function fetchArchiveForDate(date: Date): Promise<DailyPuzzleDef | null> {
+  const dateStr = format(date, 'yyyy-MM-dd');
+  const seed = parseInt(format(date, 'yyyyMMdd'), 10);
   const rng = mulberry32(seed);
 
-  // We use 5 to 25 years ago. This ensures we hit the 2000s+ where OCR is highly accurate,
-  // avoiding the "JUCLGE" typos from the 1970s.
   const yearsAgoOptions = [5, 10, 15, 20, 25];
-  
-  // Pick a deterministic year for today
   const yearsAgo = yearsAgoOptions[Math.floor(rng() * yearsAgoOptions.length)];
-  const targetDate = subYears(today, yearsAgo);
+  const targetDate = subYears(date, yearsAgo);
   
   const year = targetDate.getFullYear();
   const month = format(targetDate, 'MM');
@@ -55,21 +65,23 @@ export async function getDailyPuzzleDef(): Promise<DailyPuzzleDef> {
         url: link.getAttribute('href') || '',
         headline: (link.textContent || '').trim()
       }))
-      .filter(item => 
-        item.url.includes(`/${year}/${month}/${day}/`) && 
-        item.headline.length > 30 && 
-        item.headline.length < 90 &&
-        /^[a-zA-Z0-9\s.,!?'"-]+$/.test(item.headline) // Basic clean text filter
-      );
+      .filter(item => {
+        const h = item.headline.toLowerCase();
+        return item.url.includes(`/${year}/${month}/${day}/`) && 
+               item.headline.length > 25 && 
+               item.headline.length < 90 &&
+               !h.includes('no title') &&
+               !h.includes('untitled') &&
+               !h.startsWith('article ') &&
+               /^[a-zA-Z0-9\s.,!?'"-]+$/.test(item.headline); // Basic clean text filter
+      });
 
-    // Sort alphabetically to ensure deterministic order regardless of HTML structure changes
     headlines.sort((a, b) => a.headline.localeCompare(b.headline));
 
     if (headlines.length > 0) {
-      // Pick deterministic headline
       const selected = headlines[Math.floor(rng() * headlines.length)];
       return {
-        date: todayStr,
+        date: dateStr,
         headline: selected.headline.toUpperCase(),
         url: selected.url.startsWith('http') ? selected.url : `https://www.nytimes.com${selected.url}`,
         sourceDate: format(targetDate, 'yyyy-MM-dd')
@@ -78,12 +90,78 @@ export async function getDailyPuzzleDef(): Promise<DailyPuzzleDef> {
   } catch (error) {
     console.error('Failed to fetch from NYT:', error);
   }
+  return null;
+}
 
-  // Fallback if offline or proxy fails
+export async function getDailyPuzzleDef(): Promise<DailyPuzzleDef> {
+  const today = new Date();
+  const todayStr = format(today, 'yyyy-MM-dd');
+
+  // FAST LOAD 1: Check pre-generated json
+  const preGenerated = (puzzlesData as Record<string, DailyPuzzleDef>)[todayStr];
+  if (preGenerated) {
+    return preGenerated;
+  }
+
+  // FAST LOAD 2: Check local storage (background fetched)
+  const localPuzzles = getLocalPuzzles();
+  if (localPuzzles[todayStr]) {
+    return localPuzzles[todayStr];
+  }
+
+  // FALLBACK: Dynamic generation right away
+  const fetched = await fetchArchiveForDate(today);
+  if (fetched) return fetched;
+
+  // Final fallback if offline
   return {
     date: todayStr,
     headline: "ARCHIVE CONNECTION FAILED BUT YOU CAN STILL PLAY THIS BACKUP PUZZLE",
     url: "https://www.nytimes.com",
     sourceDate: "2000-01-01"
   };
+}
+
+// Background loading: called quietly after the game loads
+export async function prefetchNextPuzzle() {
+  const today = new Date();
+  const todayStr = format(today, 'yyyy-MM-dd');
+
+  // We only fetch one puzzle per day in the background to avoid spamming the proxy.
+  const lastFetch = localStorage.getItem('chrono_last_bg_fetch');
+  if (lastFetch === todayStr) {
+    return; // Already did our background job today
+  }
+
+  const localPuzzles = getLocalPuzzles();
+  let checkDate = addDays(today, 1);
+  let missingDate: Date | null = null;
+  let missingDateStr = '';
+
+  // Scan future dates to find the first one that is missing from both files and localStorage
+  // Limit to searching 1000 days forward to avoid infinite loops
+  for (let i = 0; i < 1000; i++) {
+    const ds = format(checkDate, 'yyyy-MM-dd');
+    const inJson = !!(puzzlesData as Record<string, DailyPuzzleDef>)[ds];
+    const inLocal = !!localPuzzles[ds];
+    
+    if (!inJson && !inLocal) {
+      missingDate = checkDate;
+      missingDateStr = ds;
+      break;
+    }
+    checkDate = addDays(checkDate, 1);
+  }
+
+  if (missingDate) {
+    console.log("Background fetching future puzzle for:", missingDateStr);
+    const fetched = await fetchArchiveForDate(missingDate);
+    if (fetched) {
+      localPuzzles[missingDateStr] = fetched;
+      saveLocalPuzzles(localPuzzles);
+      // Mark background fetch as done for today only if successful
+      localStorage.setItem('chrono_last_bg_fetch', todayStr);
+      console.log("Background fetch saved successfully!");
+    }
+  }
 }
