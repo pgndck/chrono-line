@@ -93,33 +93,41 @@ async function fetchArchiveForDate(date: Date): Promise<DailyPuzzleDef | null> {
   return null;
 }
 
-export async function getDailyPuzzleDef(): Promise<DailyPuzzleDef> {
-  const today = new Date();
-  const todayStr = format(today, 'yyyy-MM-dd');
+export async function getPuzzleDefForDate(date: Date): Promise<DailyPuzzleDef> {
+  const dateStr = format(date, 'yyyy-MM-dd');
 
   // FAST LOAD 1: Check pre-generated json
-  const preGenerated = (puzzlesData as Record<string, DailyPuzzleDef>)[todayStr];
+  const preGenerated = (puzzlesData as Record<string, DailyPuzzleDef>)[dateStr];
   if (preGenerated) {
     return preGenerated;
   }
 
   // FAST LOAD 2: Check local storage (background fetched)
   const localPuzzles = getLocalPuzzles();
-  if (localPuzzles[todayStr]) {
-    return localPuzzles[todayStr];
+  if (localPuzzles[dateStr]) {
+    return localPuzzles[dateStr];
   }
 
   // FALLBACK: Dynamic generation right away
-  const fetched = await fetchArchiveForDate(today);
-  if (fetched) return fetched;
+  const fetched = await fetchArchiveForDate(date);
+  if (fetched) {
+    // Cache it so we don't fetch again if the user reloads the archive date
+    localPuzzles[dateStr] = fetched;
+    saveLocalPuzzles(localPuzzles);
+    return fetched;
+  }
 
   // Final fallback if offline
   return {
-    date: todayStr,
+    date: dateStr,
     headline: "ARCHIVE CONNECTION FAILED BUT YOU CAN STILL PLAY THIS BACKUP PUZZLE",
     url: "https://www.nytimes.com",
     sourceDate: "2000-01-01"
   };
+}
+
+export async function getDailyPuzzleDef(): Promise<DailyPuzzleDef> {
+  return getPuzzleDefForDate(new Date());
 }
 
 // Background loading: called quietly after the game loads

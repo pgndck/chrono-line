@@ -1,9 +1,10 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { generatePuzzleData, PuzzleData, PuzzleGridCell } from './utils/puzzleUtils';
-import { getDailyPuzzleDef, DailyPuzzleDef, prefetchNextPuzzle } from './utils/dailyPuzzle';
-import { Loader2, Share2, HelpCircle, Trophy, Wand2, Shuffle } from 'lucide-react';
-import { format } from 'date-fns';
+import { getPuzzleDefForDate, prefetchNextPuzzle } from './utils/dailyPuzzle';
+import { Loader2, Share2, HelpCircle, Trophy, Wand2, Shuffle, CalendarDays } from 'lucide-react';
+import { format, isSameDay, parseISO } from 'date-fns';
 import clsx from 'clsx';
+import { ArchiveView } from './components/ArchiveView';
 
 interface DailyStat {
   isComplete: boolean;
@@ -12,7 +13,12 @@ interface DailyStat {
 }
 type StatsDB = Record<string, DailyStat>;
 
+type ViewState = 'game' | 'archive';
+
 export default function App() {
+  const [view, setView] = useState<ViewState>('game');
+  const [activeDate, setActiveDate] = useState<Date>(new Date());
+  
   const [puzzleData, setPuzzleData] = useState<PuzzleData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -33,33 +39,48 @@ export default function App() {
 
   useEffect(() => {
     const loadPuzzle = async () => {
+      setLoading(true);
+      setError('');
       try {
-        const def = await getDailyPuzzleDef();
+        const def = await getPuzzleDefForDate(activeDate);
         const pData = generatePuzzleData(def.headline, def.sourceDate, def.url, 12);
         setPuzzleData(pData);
         
-        const todayStr = format(new Date(), 'yyyy-MM-dd');
-        const savedStateStr = localStorage.getItem('chrono_state');
-        let loadedFromSave = false;
-
+        const activeDateStr = format(activeDate, 'yyyy-MM-dd');
+        
+        let savedStateStr = localStorage.getItem('chrono_states');
+        let allStates: any = {};
         if (savedStateStr) {
+          try { allStates = JSON.parse(savedStateStr); } catch (e) {}
+        }
+
+        // Migrate old `chrono_state` if it exists and matches active date
+        const oldStateStr = localStorage.getItem('chrono_state');
+        if (oldStateStr) {
           try {
-            const savedState = JSON.parse(savedStateStr);
-            const isSameHeadline = savedState.headline === pData.headline;
-            const isSameGrid = savedState.gridState?.length === pData.grid.length && 
-                               savedState.gridState?.[0]?.length === pData.grid[0]?.length;
-                               
-            if (savedState.date === todayStr && isSameHeadline && isSameGrid) {
-              setGridState(savedState.gridState);
-              setElapsedTime(savedState.elapsedTime);
-              setHintsUsed(savedState.hintsUsed);
-              setIsSolved(savedState.isSolved);
-              setColumnSorts(savedState.columnSorts || pData.columns.map(col => col.map(() => Math.random())));
-              setStartTime(Date.now() - savedState.elapsedTime);
-              loadedFromSave = true;
+            const oldState = JSON.parse(oldStateStr);
+            if (oldState.date === activeDateStr && !allStates[activeDateStr]) {
+              allStates[activeDateStr] = oldState;
             }
-          } catch (e) {
-            console.error("Failed to parse saved state", e);
+          } catch(e) {}
+        }
+
+        let loadedFromSave = false;
+        const savedState = allStates[activeDateStr];
+
+        if (savedState) {
+          const isSameHeadline = savedState.headline === pData.headline;
+          const isSameGrid = savedState.gridState?.length === pData.grid.length && 
+                             savedState.gridState?.[0]?.length === pData.grid[0]?.length;
+                             
+          if (savedState.date === activeDateStr && isSameHeadline && isSameGrid) {
+            setGridState(savedState.gridState);
+            setElapsedTime(savedState.elapsedTime);
+            setHintsUsed(savedState.hintsUsed);
+            setIsSolved(savedState.isSolved);
+            setColumnSorts(savedState.columnSorts || pData.columns.map(col => col.map(() => Math.random())));
+            setStartTime(Date.now() - savedState.elapsedTime);
+            loadedFromSave = true;
           }
         }
 
@@ -70,14 +91,17 @@ export default function App() {
           setElapsedTime(0);
           setHintsUsed(0);
           setIsSolved(false);
+          setSelectedCell(null);
         }
         
         setLoading(false);
         
-        // Quietly fetch a future puzzle in the background
-        setTimeout(() => {
-          prefetchNextPuzzle().catch(console.error);
-        }, 1000);
+        // Quietly fetch a future puzzle in the background only if we are playing today's puzzle
+        if (isSameDay(activeDate, new Date())) {
+          setTimeout(() => {
+            prefetchNextPuzzle().catch(console.error);
+          }, 1000);
+        }
 
       } catch (err) {
         console.error(err);
@@ -87,32 +111,47 @@ export default function App() {
     };
 
     loadPuzzle();
-  }, []);
+  }, [activeDate]);
 
   // Save game state
   useEffect(() => {
     if (puzzleData && gridState.length > 0) {
-      const todayStr = format(new Date(), 'yyyy-MM-dd');
-      localStorage.setItem('chrono_state', JSON.stringify({
-        date: todayStr,
+      const activeDateStr = format(activeDate, 'yyyy-MM-dd');
+      
+      const currentState = {
+        date: activeDateStr,
         headline: puzzleData.headline,
         gridState,
         elapsedTime,
         hintsUsed,
         isSolved,
         columnSorts
-      }));
+      };
+
+      const savedStateStr = localStorage.getItem('chrono_states');
+      let allStates: any = {};
+      if (savedStateStr) {
+        try { allStates = JSON.parse(savedStateStr); } catch (e) {}
+      }
+      
+      allStates[activeDateStr] = currentState;
+      localStorage.setItem('chrono_states', JSON.stringify(allStates));
+      
+      // Also update legacy state for today to remain compatible
+      if (isSameDay(activeDate, new Date())) {
+        localStorage.setItem('chrono_state', JSON.stringify(currentState));
+      }
     }
-  }, [gridState, elapsedTime, hintsUsed, isSolved, puzzleData, columnSorts]);
+  }, [gridState, elapsedTime, hintsUsed, isSolved, puzzleData, columnSorts, activeDate]);
 
   useEffect(() => {
-    if (!isSolved && startTime > 0) {
+    if (!isSolved && startTime > 0 && !loading && puzzleData) {
       const interval = setInterval(() => {
         setElapsedTime(Math.floor((Date.now() - startTime) / 1000));
       }, 1000);
       return () => clearInterval(interval);
     }
-  }, [isSolved, startTime]);
+  }, [isSolved, startTime, loading, puzzleData]);
 
   const checkWinCondition = useCallback((currentGrid: PuzzleGridCell[][]) => {
     let solved = true;
@@ -129,10 +168,10 @@ export default function App() {
       setIsSolved(true);
       
       // Save stats
-      const todayStr = format(new Date(), 'yyyy-MM-dd');
+      const activeDateStr = format(activeDate, 'yyyy-MM-dd');
       const newStats = {
         ...stats,
-        [todayStr]: {
+        [activeDateStr]: {
           isComplete: true,
           endTime: Date.now(),
           completeTime: elapsedTime
@@ -141,7 +180,7 @@ export default function App() {
       setStats(newStats);
       localStorage.setItem('chrono_stats', JSON.stringify(newStats));
     }
-  }, [isSolved, elapsedTime, stats]);
+  }, [isSolved, elapsedTime, stats, activeDate]);
 
   useEffect(() => {
     if (selectedCell && !isSolved) {
@@ -425,6 +464,19 @@ export default function App() {
     return filtered.map(r => r.letter);
   });
 
+  if (view === 'archive') {
+    return (
+      <ArchiveView 
+        stats={stats} 
+        onSelectDate={(d) => {
+          setActiveDate(d);
+          setView('game');
+        }} 
+        onClose={() => setView('game')} 
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[var(--color-paper)] text-[var(--color-ink)] font-serif flex flex-col border-[8px] sm:border-[12px] border-[var(--color-ink)] box-border selection:bg-[var(--color-accent)] selection:text-[var(--color-paper)]">
       <header className="h-[80px] border-b-2 border-[var(--color-ink)] px-4 sm:px-10 flex items-center justify-between sticky top-0 z-10 bg-[var(--color-paper)]">
@@ -432,26 +484,34 @@ export default function App() {
           <div className="w-8 h-8 sm:w-10 sm:h-10 bg-[var(--color-ink)] text-[var(--color-paper)] flex items-center justify-center font-serif text-2xl sm:text-3xl font-black transition-transform group-hover:-rotate-6">
             <span className="mt-[2px] sm:mt-[4px]">C</span>
           </div>
-          <h1 className="font-serif font-bold text-lg sm:text-xl uppercase tracking-[0.08em] sm:tracking-[0.12em] ml-1 sm:ml-1.5 mt-1 sm:mt-1.5 flex items-center">
+          <h1 className="font-serif font-bold text-lg sm:text-xl uppercase tracking-[0.08em] sm:tracking-[0.12em] ml-1 sm:ml-1.5 mt-1 sm:mt-1.5 flex items-center hidden sm:flex">
             HRONO<span className="tracking-tight mx-[2px] opacity-80">-</span>LINE
           </h1>
         </div>
-        <div className="hidden sm:block text-center absolute left-1/2 -translate-x-1/2">
-          <h2 className="font-sans text-[14px] uppercase tracking-[2px] font-bold">Archive Edition</h2>
-          <p className="italic text-[18px] font-serif">
-            {new Date(puzzleData.sourceDate).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}
+        <div className="text-center absolute left-1/2 -translate-x-1/2">
+          <p className="font-sans text-[16px] sm:text-[18px] uppercase tracking-[2px] font-bold">
+            {format(parseISO(puzzleData.sourceDate), 'MMMM d, yyyy')}
           </p>
         </div>
-        <div className="flex gap-4 sm:gap-6 font-sans text-[10px] sm:text-xs font-bold uppercase">
-          <div>Time: {formatTime(elapsedTime)}</div>
-          <div>Hints: {hintsUsed}</div>
+        <div className="flex items-center gap-4 sm:gap-6 font-sans text-[10px] sm:text-xs font-bold uppercase">
+          <div className="hidden md:flex gap-4 sm:gap-6">
+            <div>Time: {formatTime(elapsedTime)}</div>
+            <div>Hints: {hintsUsed}</div>
+          </div>
+          <button 
+            onClick={() => setView('archive')}
+            className="flex items-center justify-center w-10 h-10 border-2 border-[var(--color-ink)] hover:bg-[var(--color-ink)] hover:text-[var(--color-paper)] transition-colors rounded-full"
+            title="Archive"
+          >
+            <CalendarDays className="w-5 h-5" strokeWidth={2.5} />
+          </button>
         </div>
       </header>
 
       <main className="flex-1 flex flex-col items-center justify-center p-4 sm:p-10">
         
         <div className="opacity-50 text-sm sm:text-base mb-8 text-center max-w-2xl leading-relaxed">
-          From the New York Times Front Page: Decode the headline from {new Date(puzzleData.sourceDate).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}.
+          From the New York Times Front Page: Decode the headline from {format(parseISO(puzzleData.sourceDate), 'MMMM d, yyyy')}.
         </div>
 
         <div className="flex flex-col gap-1">
