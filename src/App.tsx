@@ -5,6 +5,7 @@ import { Loader2, Share2, HelpCircle, Trophy, Wand2, Shuffle, CalendarDays, Awar
 import { format, isSameDay, parseISO } from 'date-fns';
 import clsx from 'clsx';
 import { ArchiveView } from './components/ArchiveView';
+import { HomeView } from './components/HomeView';
 import { VictoryModal } from './components/VictoryModal';
 import { playVictorySound } from './utils/audio';
 
@@ -15,10 +16,10 @@ interface DailyStat {
 }
 type StatsDB = Record<string, DailyStat>;
 
-type ViewState = 'game' | 'archive';
+type ViewState = 'home' | 'game' | 'archive';
 
 export default function App() {
-  const [view, setView] = useState<ViewState>('game');
+  const [view, setView] = useState<ViewState>('home');
   const [activeDate, setActiveDate] = useState<Date>(new Date());
   const [showVictoryModal, setShowVictoryModal] = useState(false);
   
@@ -426,6 +427,33 @@ export default function App() {
     return `${m}:${s.toString().padStart(2, '0')}`;
   };
 
+  if (view === 'home') {
+    return (
+      <HomeView
+        stats={stats}
+        onPlayDate={(d) => {
+          setActiveDate(d);
+          setView('game');
+        }}
+        onOpenArchive={() => setView('archive')}
+      />
+    );
+  }
+
+  if (view === 'archive') {
+    return (
+      <ArchiveView 
+        stats={stats} 
+        onSelectDate={(d) => {
+          setActiveDate(d);
+          setView('game');
+        }} 
+        onClose={() => setView('home')} 
+        onGoHome={() => setView('home')}
+      />
+    );
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[var(--color-paper)] text-[var(--color-ink)] font-serif flex items-center justify-center border-[8px] sm:border-[12px] border-[var(--color-ink)] box-border">
@@ -476,23 +504,10 @@ export default function App() {
     return filtered.map(r => r.letter);
   });
 
-  if (view === 'archive') {
-    return (
-      <ArchiveView 
-        stats={stats} 
-        onSelectDate={(d) => {
-          setActiveDate(d);
-          setView('game');
-        }} 
-        onClose={() => setView('game')} 
-      />
-    );
-  }
-
   return (
     <div className="min-h-screen bg-[var(--color-paper)] text-[var(--color-ink)] font-serif flex flex-col border-[8px] sm:border-[12px] border-[var(--color-ink)] box-border selection:bg-[var(--color-accent)] selection:text-[var(--color-paper)]">
       <header className="h-[80px] border-b-2 border-[var(--color-ink)] px-4 sm:px-10 flex items-center justify-between sticky top-0 z-10 bg-[var(--color-paper)]">
-        <div className="flex items-center select-none group cursor-default" title="Chrono-Line">
+        <div onClick={() => setView('home')} className="flex items-center select-none group cursor-pointer" title="Chrono-Line Home">
           <div className="w-8 h-8 sm:w-10 sm:h-10 bg-[var(--color-ink)] text-[var(--color-paper)] flex items-center justify-center font-serif text-2xl sm:text-3xl font-black transition-transform group-hover:-rotate-6">
             <span className="mt-[2px] sm:mt-[4px]">C</span>
           </div>

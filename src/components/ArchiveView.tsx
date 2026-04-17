@@ -7,9 +7,10 @@ interface ArchiveViewProps {
   stats: Record<string, any>;
   onSelectDate: (date: Date) => void;
   onClose: () => void;
+  onGoHome: () => void;
 }
 
-export function ArchiveView({ stats, onSelectDate, onClose }: ArchiveViewProps) {
+export function ArchiveView({ stats, onSelectDate, onClose, onGoHome }: ArchiveViewProps) {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   
   const today = new Date();
@@ -50,7 +51,7 @@ export function ArchiveView({ stats, onSelectDate, onClose }: ArchiveViewProps) 
       
       {/* Header */}
       <header className="h-[80px] border-b-2 border-[var(--color-ink)] px-4 sm:px-10 flex items-center justify-between sticky top-0 z-10 bg-[var(--color-paper)]">
-        <div className="flex items-center select-none cursor-default" title="Chrono-Line">
+        <div onClick={onGoHome} className="flex items-center select-none cursor-pointer hover:opacity-80 transition-opacity" title="Chrono-Line Home">
           <div className="w-8 h-8 sm:w-10 sm:h-10 bg-[var(--color-ink)] text-[var(--color-paper)] flex items-center justify-center font-serif text-2xl sm:text-3xl font-black">
             <span className="mt-[2px] sm:mt-[4px]">C</span>
           </div>
