@@ -45,12 +45,11 @@ export default function App() {
         if (savedStateStr) {
           try {
             const savedState = JSON.parse(savedStateStr);
-            // Check if date matches AND the grid dimensions match the current puzzle
-            // This prevents issues if we update the filtering logic and the puzzle changes mid-day
+            const isSameHeadline = savedState.headline === pData.headline;
             const isSameGrid = savedState.gridState?.length === pData.grid.length && 
                                savedState.gridState?.[0]?.length === pData.grid[0]?.length;
                                
-            if (savedState.date === todayStr && isSameGrid) {
+            if (savedState.date === todayStr && isSameHeadline && isSameGrid) {
               setGridState(savedState.gridState);
               setElapsedTime(savedState.elapsedTime);
               setHintsUsed(savedState.hintsUsed);
@@ -96,6 +95,7 @@ export default function App() {
       const todayStr = format(new Date(), 'yyyy-MM-dd');
       localStorage.setItem('chrono_state', JSON.stringify({
         date: todayStr,
+        headline: puzzleData.headline,
         gridState,
         elapsedTime,
         hintsUsed,
@@ -516,10 +516,9 @@ export default function App() {
           ref={inputRef}
           type="text"
           className="opacity-0 absolute -z-10"
-          onBlur={(e) => {
-            if (!isSolved && selectedCell) {
-              setTimeout(() => e.target.focus(), 10);
-            }
+          onBlur={() => {
+            // Intentionally not forcing focus back. 
+            // This allows users to click and type in other text fields on the page.
           }}
           onChange={(e) => {
             const val = e.target.value;
