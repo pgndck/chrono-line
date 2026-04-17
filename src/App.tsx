@@ -1,10 +1,12 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { generatePuzzleData, PuzzleData, PuzzleGridCell } from './utils/puzzleUtils';
 import { getPuzzleDefForDate, prefetchNextPuzzle } from './utils/dailyPuzzle';
-import { Loader2, Share2, HelpCircle, Trophy, Wand2, Shuffle, CalendarDays } from 'lucide-react';
+import { Loader2, Share2, HelpCircle, Trophy, Wand2, Shuffle, CalendarDays, Award } from 'lucide-react';
 import { format, isSameDay, parseISO } from 'date-fns';
 import clsx from 'clsx';
 import { ArchiveView } from './components/ArchiveView';
+import { VictoryModal } from './components/VictoryModal';
+import { playVictorySound } from './utils/audio';
 
 interface DailyStat {
   isComplete: boolean;
@@ -18,6 +20,7 @@ type ViewState = 'game' | 'archive';
 export default function App() {
   const [view, setView] = useState<ViewState>('game');
   const [activeDate, setActiveDate] = useState<Date>(new Date());
+  const [showVictoryModal, setShowVictoryModal] = useState(false);
   
   const [puzzleData, setPuzzleData] = useState<PuzzleData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -113,6 +116,7 @@ export default function App() {
           }
         }
         
+        setShowVictoryModal(false);
         setLoading(false);
         
         // Quietly fetch a future puzzle in the background only if we are playing today's puzzle
@@ -185,6 +189,9 @@ export default function App() {
     }
     if (solved && !isSolved) {
       setIsSolved(true);
+      playVictorySound();
+      // Add slight delay before showing modal for better pacing
+      setTimeout(() => setShowVictoryModal(true), 600);
       
       // Save stats
       const activeDateStr = format(activeDate, 'yyyy-MM-dd');
@@ -410,20 +417,6 @@ export default function App() {
       setGridState(newGrid);
       checkWinCondition(newGrid);
       moveToNextEmptyCell(targetRow, c, newGrid);
-    }
-  };
-
-  const handleShare = () => {
-    const mins = Math.floor(elapsedTime / 60);
-    const secs = elapsedTime % 60;
-    const timeStr = `${mins}:${secs.toString().padStart(2, '0')}`;
-    const text = `NYT Drop Quote\nTime: ${timeStr}\nHints: ${hintsUsed}\nPlay at: ${window.location.href}`;
-    
-    if (navigator.share) {
-      navigator.share({ text });
-    } else {
-      navigator.clipboard.writeText(text);
-      alert('Copied to clipboard!');
     }
   };
 
@@ -664,15 +657,7 @@ export default function App() {
             </>
           ) : (
             <div className="text-center">
-              <h2 className="text-xl font-bold uppercase mb-1">Archive Decoded</h2>
-              <a 
-                href={puzzleData.url} 
-                target="_blank" 
-                rel="noreferrer"
-                className="font-sans text-xs font-bold uppercase border-b-2 border-[var(--color-ink)] hover:text-[var(--color-accent)] hover:border-[var(--color-accent)] transition-colors"
-              >
-                Read Original Article
-              </a>
+              <h2 className="font-serif text-xl sm:text-2xl font-bold uppercase tracking-widest mb-1 text-[var(--color-accent)] animate-pulse">Archive Decoded</h2>
             </div>
           )}
         </div>
@@ -680,14 +665,22 @@ export default function App() {
         <div className="flex justify-center sm:justify-end">
           {isSolved && (
             <button
-              onClick={handleShare}
-              className="bg-[var(--color-ink)] text-[var(--color-paper)] px-6 py-3 font-sans uppercase text-xs font-bold tracking-[1px] flex items-center gap-2 hover:bg-gray-800 transition-colors"
+              onClick={() => setShowVictoryModal(true)}
+              className="bg-[var(--color-ink)] text-[var(--color-paper)] px-6 py-3 font-sans uppercase text-xs font-bold tracking-[1px] flex items-center gap-2 hover:opacity-90 transition-opacity"
             >
-              <Share2 className="w-4 h-4" /> Copy Result
+              <Award className="w-4 h-4" /> View Results
             </button>
           )}
         </div>
       </footer>
+
+      <VictoryModal 
+        isOpen={showVictoryModal} 
+        onClose={() => setShowVictoryModal(false)}
+        puzzleData={puzzleData}
+        elapsedTime={elapsedTime}
+        hintsUsed={hintsUsed}
+      />
     </div>
   );
 }
