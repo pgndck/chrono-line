@@ -69,7 +69,8 @@ export default function App() {
         const savedState = allStates[activeDateStr];
 
         if (savedState) {
-          const isSameHeadline = savedState.headline === pData.headline;
+          // Check for headline (relax constraint if older save didn't have headline stored)
+          const isSameHeadline = !savedState.headline || savedState.headline === pData.headline;
           const isSameGrid = savedState.gridState?.length === pData.grid.length && 
                              savedState.gridState?.[0]?.length === pData.grid[0]?.length;
                              
@@ -85,13 +86,31 @@ export default function App() {
         }
 
         if (!loadedFromSave) {
-          setGridState(pData.grid);
-          setColumnSorts(pData.columns.map(col => col.map(() => Math.random())));
-          setStartTime(Date.now());
-          setElapsedTime(0);
-          setHintsUsed(0);
-          setIsSolved(false);
-          setSelectedCell(null);
+          // If the grid state was lost but the user previously completed it based on stats:
+          let statsDB: Record<string, any> = {};
+          try { statsDB = JSON.parse(localStorage.getItem('chrono_stats') || '{}'); } catch(e) {}
+          
+          if (statsDB[activeDateStr]?.isComplete) {
+            const solvedGrid = pData.grid.map(row => 
+              row.map(cell => ({ ...cell, userInput: cell.isSpace ? '' : cell.char }))
+            );
+            setGridState(solvedGrid);
+            setColumnSorts(pData.columns.map(col => col.map(() => Math.random())));
+            const compTime = statsDB[activeDateStr].completeTime || 0;
+            setElapsedTime(compTime);
+            setStartTime(Date.now() - (compTime * 1000));
+            setHintsUsed(0);
+            setIsSolved(true);
+            setSelectedCell(null);
+          } else {
+            setGridState(pData.grid);
+            setColumnSorts(pData.columns.map(col => col.map(() => Math.random())));
+            setStartTime(Date.now());
+            setElapsedTime(0);
+            setHintsUsed(0);
+            setIsSolved(false);
+            setSelectedCell(null);
+          }
         }
         
         setLoading(false);
