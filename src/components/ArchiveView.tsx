@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, isSameMonth, subMonths, addMonths, isSameDay } from 'date-fns';
-import { ChevronLeft, ChevronRight, CheckSquare } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CheckSquare, X } from 'lucide-react';
 import clsx from 'clsx';
 
 interface ArchiveViewProps {
@@ -50,18 +50,27 @@ export function ArchiveView({ stats, onSelectDate, onClose }: ArchiveViewProps) 
       
       {/* Header */}
       <header className="h-[80px] border-b-2 border-[var(--color-ink)] px-4 sm:px-10 flex items-center justify-between sticky top-0 z-10 bg-[var(--color-paper)]">
-        <button 
-          onClick={onClose}
-          className="flex flex-col gap-1 group p-2 -ml-2 select-none"
-          title="Back to Game"
-        >
-          <div className="w-[30px] h-[4px] bg-[var(--color-ink)] transition-transform origin-left group-hover:rotate-45" />
-          <div className="w-[30px] h-[4px] bg-[var(--color-ink)] transition-opacity group-hover:opacity-0" />
-          <div className="w-[30px] h-[4px] bg-[var(--color-ink)] transition-transform origin-left group-hover:-rotate-45" />
-        </button>
+        <div className="flex items-center select-none cursor-default" title="Chrono-Line">
+          <div className="w-8 h-8 sm:w-10 sm:h-10 bg-[var(--color-ink)] text-[var(--color-paper)] flex items-center justify-center font-serif text-2xl sm:text-3xl font-black">
+            <span className="mt-[2px] sm:mt-[4px]">C</span>
+          </div>
+          <h1 className="font-serif font-bold text-lg sm:text-xl uppercase tracking-[0.08em] sm:tracking-[0.12em] ml-1 sm:ml-1.5 mt-1 sm:mt-1.5 flex items-center hidden sm:flex">
+            HRONO<span className="tracking-tight mx-[2px] opacity-80">-</span>LINE
+          </h1>
+        </div>
         
         <div className="text-center absolute left-1/2 -translate-x-1/2">
-          <h2 className="font-sans text-[18px] sm:text-[22px] uppercase tracking-[3px] font-black">Archive</h2>
+          <h2 className="font-sans text-[16px] sm:text-[18px] uppercase tracking-[2px] font-bold">Archive</h2>
+        </div>
+
+        <div className="flex items-center justify-end">
+          <button 
+            onClick={onClose}
+            className="flex items-center justify-center w-10 h-10 border-2 border-[var(--color-ink)] bg-[var(--color-ink)] text-[var(--color-paper)] hover:bg-transparent hover:text-[var(--color-ink)] transition-colors rounded-full group"
+            title="Back to Game"
+          >
+            <X className="w-5 h-5 transition-transform group-hover:rotate-90 group-hover:scale-110" strokeWidth={2.5} />
+          </button>
         </div>
       </header>
 
