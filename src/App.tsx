@@ -428,8 +428,13 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[var(--color-paper)] text-[var(--color-ink)] font-serif flex flex-col border-[8px] sm:border-[12px] border-[var(--color-ink)] box-border selection:bg-[var(--color-accent)] selection:text-[var(--color-paper)]">
       <header className="h-[80px] border-b-2 border-[var(--color-ink)] px-4 sm:px-10 flex items-center justify-between sticky top-0 z-10 bg-[var(--color-paper)]">
-        <div className="font-sans font-black text-lg sm:text-2xl uppercase tracking-[-1px] border-2 border-[var(--color-ink)] px-2 sm:px-3 py-1">
-          CHRONO-LINE
+        <div className="flex items-center select-none group cursor-default" title="Chrono-Line">
+          <div className="w-8 h-8 sm:w-10 sm:h-10 bg-[var(--color-ink)] text-[var(--color-paper)] flex items-center justify-center font-serif text-2xl sm:text-3xl font-black transition-transform group-hover:-rotate-6">
+            <span className="mt-[2px] sm:mt-[4px]">C</span>
+          </div>
+          <h1 className="font-serif font-bold text-lg sm:text-xl uppercase tracking-[0.08em] sm:tracking-[0.12em] ml-1 sm:ml-1.5 mt-1 sm:mt-1.5 flex items-center">
+            HRONO<span className="tracking-tight mx-[2px] opacity-80">-</span>LINE
+          </h1>
         </div>
         <div className="hidden sm:block text-center absolute left-1/2 -translate-x-1/2">
           <h2 className="font-sans text-[14px] uppercase tracking-[2px] font-bold">Archive Edition</h2>
