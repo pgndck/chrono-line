@@ -11,6 +11,7 @@ export interface PuzzleData {
   headline: string;
   sourceDate: string;
   url: string;
+  difficulty: number;
 }
 
 export function generatePuzzleData(headline: string, sourceDate: string, url: string, cols: number = 15): PuzzleData {
@@ -21,6 +22,7 @@ export function generatePuzzleData(headline: string, sourceDate: string, url: st
   const columns: string[][] = Array.from({ length: cols }, () => []);
   
   let currentRow: PuzzleGridCell[] = [];
+  let letterCount = 0;
   
   for (let i = 0; i < cleaned.length; i++) {
     const char = cleaned[i];
@@ -35,6 +37,7 @@ export function generatePuzzleData(headline: string, sourceDate: string, url: st
     
     if (!isSpace) {
       columns[currentRow.length - 1].push(char);
+      letterCount++;
     }
     
     if (currentRow.length === cols) {
@@ -66,11 +69,24 @@ export function generatePuzzleData(headline: string, sourceDate: string, url: st
     return shuffled;
   });
   
+  // Calculate difficulty out of 5 based on letter count
+  // < 35 letters = 1
+  // 35-44 letters = 2
+  // 45-54 letters = 3
+  // 55-64 letters = 4
+  // 65+ letters = 5
+  let difficulty = 1;
+  if (letterCount >= 65) difficulty = 5;
+  else if (letterCount >= 55) difficulty = 4;
+  else if (letterCount >= 45) difficulty = 3;
+  else if (letterCount >= 35) difficulty = 2;
+
   return {
     grid,
     columns: shuffledColumns,
     headline: cleaned,
     sourceDate,
-    url
+    url,
+    difficulty
   };
 }

@@ -613,7 +613,7 @@ export default function App() {
           <div className="font-sans text-[10px] uppercase tracking-[1px] font-bold text-[var(--color-ink)]">Difficulty</div>
           <div className="flex gap-[2px]">
             {[...Array(5)].map((_, i) => (
-              <div key={i} className={clsx("h-[6px] w-[24px]", i < 3 ? "bg-[var(--color-accent)]" : "bg-[var(--color-grid-line)]")} />
+              <div key={i} className={clsx("h-[6px] w-[24px]", i < (puzzleData?.difficulty || 3) ? "bg-[var(--color-accent)]" : "bg-[var(--color-grid-line)]")} />
             ))}
           </div>
         </div>
